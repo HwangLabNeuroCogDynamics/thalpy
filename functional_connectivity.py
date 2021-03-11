@@ -13,6 +13,7 @@ import warnings
 import masks
 from concurrent.futures import ThreadPoolExecutor
 
+print('hi')
 ROI_TO_MASK = 'roi_to_mask'
 ROI_TO_ROI = 'roi_to_roi'
 ROI_TO_BRAIN = 'roi_to_brain'
