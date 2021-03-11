@@ -15,29 +15,46 @@ class Subjects(list):
 
 
 class Subject:
-    def __init__(self, name, dir_tree):
+    def __get_sub_dir(self, path):
+        return path + self.sub_dir
+
+    def get_sub_sessions(self, run_dir):
+        return sorted([dir for dir in os.listdir(run_dir + self.sub_dir) if 'ses' in dir])
+
+    def __init__(self, name, dir_tree, run_dir, sessions=None):
         self.name = name
+
+        # set directories
         self.sub_dir = f'{s.SUB_PREFIX}{name}/'
         self.dataset_dir = dir_tree.dataset_dir
-        self.bids_dir = dir_tree.bids_dir + self.sub_dir
-        self.mriqc_dir = dir_tree.mriqc_dir + self.sub_dir
-        self.fmriprep_dir = dir_tree.fmriprep_dir + self.sub_dir
-        self.deconvolve_dir = dir_tree.deconvolve_dir + self.sub_dir
-        # if dir_tree.sessions is None:
-        #     self.sessions = get_sub_sessions(self.bids_dir)
-        # else:
-        self.sessions = dir_tree.sessions
+        self.bids_dir = self.__get_sub_dir(dir_tree.bids_dir)
+        self.mriqc_dir = self.__get_sub_dir(dir_tree.mriqc_dir)
+        self.fmriprep_dir = self.__get_sub_dir(dir_tree.fmriprep_dir)
+        self.deconvolve_dir = self.__get_sub_dir(dir_tree.deconvolve_dir)
+        self.fc_dir = self.__get_sub_dir(dir_tree.fc_dir)
+
+        # set sessions and runs
+        if dir_tree.sessions:
+            sub_sessions = self.get_sub_sessions(run_dir)
+            self.sessions = [ses for ses in dir_tree.sessions if ses in sub_sessions]
+        elif sessions is None:
+            self.sessions = self.get_sub_sessions(run_dir)
+        else:
+            self.sessions = sessions
+        self.runs = []
 
 
 # Functions
+
+
 def get_sub_dir(subject):
     return f"{s.SUB_PREFIX}{subject}/"
 
 
-def get_subjects(dir_tree, completed_subs=None, num=None):
-    subargs = get_subargs(dir_tree.bids_dir, completed_subs=completed_subs,
-                          num=num)
-    return subargs_to_subjects(subargs, dir_tree)
+def get_subjects(subject_dir, dir_tree, sessions=None, completed_subs=None, num=None):
+    subargs = get_subargs(subject_dir, completed_subs=completed_subs, num=num)
+    return subargs_to_subjects(subargs, dir_tree, subject_dir,
+                               sessions=sessions)
 
 
 def read_file_subargs(filepath, dir_tree, num=None):
@@ -48,9 +65,11 @@ def read_file_subargs(filepath, dir_tree, num=None):
     return subargs_to_subjects(subargs, dir_tree)
 
 
-def get_subargs(bids_dir, completed_subs=None, num=None):
+def get_subargs(sub_dir, completed_subs=None, num=None):
     subargs = [dir.replace(s.SUB_PREFIX, '')
-               for dir in os.listdir(bids_dir) if s.SUB_PREFIX in dir]
+               for dir in os.listdir(sub_dir)
+               if os.path.isdir(os.path.join(sub_dir, dir))
+               and s.SUB_PREFIX in dir]
     if completed_subs:
         subargs = sorted([sub for sub in subargs
                           if sub not in completed_subs.to_subargs_list()])
@@ -61,21 +80,29 @@ def get_subargs(bids_dir, completed_subs=None, num=None):
         return subargs
 
 
-def subargs_to_subjects(subargs, dir_tree):
+def subargs_to_subjects(subargs, dir_tree, sub_dir=None, sessions=None):
     subjects = Subjects()
     for sub in subargs:
-        subjects.append(Subject(sub, dir_tree))
+        subjects.append(Subject(sub, dir_tree, sub_dir, sessions=sessions))
     return subjects
 
 
-def get_sub_sessions(sub_bids_dir):
-    return sorted([dir for dir in os.listdir(sub_bids_dir) if 'ses' in dir])
 
+def get_sub_runs(sub_bids_dir):
+    runs = []
+
+    return runs
 
 # Filepaths --------------------------------------------------------------------
 # Classes
+
+
 class DirectoryTree:
     def __init__(self, dataset_dir, bids_dir=None, work_dir=None, sessions=None):
+        dataset_dir = check_trailing_slash(dataset_dir)
+        bids_dir = check_trailing_slash(bids_dir)
+        work_dir = check_trailing_slash(work_dir, exists=False)
+
         self.dataset_name = os.path.basename(os.path.normpath(dataset_dir))
         self.dataset_dir = dataset_dir
         self.mriqc_dir = dataset_dir + s.MRIQC_DIR
@@ -83,6 +110,7 @@ class DirectoryTree:
         self.deconvolve_dir = dataset_dir + s.DECONVOLVE_DIR
         self.raw_dir = dataset_dir + s.RAW_DIR
         self.analysis_dir = dataset_dir + s.ANALYSIS_DIR
+        self.fc_dir = dataset_dir + s.FC_DIR
         self.log_dir = dataset_dir + s.LOGS_DIR
         self.sessions = sessions
         if bids_dir is None:
@@ -96,15 +124,31 @@ class DirectoryTree:
 
 
 # Functions
-def get_ses_files(sessions, pattern):
-    if not sessions:
-        new_pattern = pattern.replace(f'{s.SESSION}/', '')
-        files = sorted(glob.glob(new_pattern))
-        return files
+def check_trailing_slash(filepath, exists=True):
+    if filepath is None:
+        return None
+    elif filepath[-1] != '/':
+        filepath += '/'
+    if not os.path.exists(filepath) and exists is True:
+        raise FileNotFoundError(filepath)
+    return filepath
 
-    for session in sessions:
-        new_pattern = pattern.replace(s.SESSION, session)
-        return files.extend(sorted(glob.glob(new_pattern)))
+
+def get_ses_files(subject, run_file_dir, file_wc):
+    files = []
+    if s.SUB_PREFIX not in run_file_dir:
+        run_file_dir = f'{run_file_dir}{s.SUB_PREFIX}{subject.name}/'
+
+    if not subject.sessions:
+        files = sorted(
+            glob.glob(f"{run_file_dir}{s.FUNC_DIR}*{subject.name}{file_wc}"))
+        print()
+    else:
+        for session in subject.sessions:
+            files.extend(
+                sorted(glob.glob(f"{run_file_dir}{session}/{s.FUNC_DIR}*{subject.name}{file_wc}")))
+
+    return files
 
 
 def parse_sub_from_file(filepath):
@@ -149,26 +193,3 @@ def parse_dir_from_file(filepath):
         else:
             dir_string += char
     return dir_string
-
-
-# Masks -----------------------------------------------------------------------
-MOREL_DICT = {
-    1: 'AN',
-    2: 'VM',
-    3: 'VL',
-    4: 'MGN',
-    5: 'MD',
-    6: 'PuA',
-    7: 'LP',
-    8: 'IL',
-    9: 'VA',
-    10: 'Po',
-    11: 'LGN',
-    12: 'PuM',
-    13: 'PuI',
-    14: 'PuL',
-    17: 'VP'
-}
-
-MOREL_LIST = ['AN', 'VM', 'VL', 'MGN', 'MD', 'PuA', 'LP',
-              'IL', 'VA', 'Po', 'LGN', 'PuM', 'PuI', 'PuL', 'VP']
