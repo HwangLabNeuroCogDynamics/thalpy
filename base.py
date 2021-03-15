@@ -1,11 +1,10 @@
 import glob2 as glob
-import basic_settings as s
+from constants import paths
 import os
 import getpass
+import pandas as pd
 
 
-# Subjects --------------------------------------------------------------------
-# Classes
 class Subjects(list):
     def to_subargs(self):
         return " ".join(sub.name for sub in self)
@@ -19,13 +18,15 @@ class Subject:
         return path + self.sub_dir
 
     def get_sub_sessions(self, run_dir):
-        return sorted([dir for dir in os.listdir(run_dir + self.sub_dir) if 'ses' in dir])
+        return sorted(
+            [dir for dir in os.listdir(run_dir + self.sub_dir) if "ses" in dir]
+        )
 
     def __init__(self, name, dir_tree, run_dir, sessions=None):
         self.name = name
 
         # set directories
-        self.sub_dir = f'{s.SUB_PREFIX}{name}/'
+        self.sub_dir = f"{paths.SUB_PREFIX}{name}/"
         self.dataset_dir = dir_tree.dataset_dir
         self.bids_dir = self.__get_sub_dir(dir_tree.bids_dir)
         self.mriqc_dir = self.__get_sub_dir(dir_tree.mriqc_dir)
@@ -45,16 +46,13 @@ class Subject:
 
 
 # Functions
-
-
 def get_sub_dir(subject):
-    return f"{s.SUB_PREFIX}{subject}/"
+    return f"{paths.SUB_PREFIX}{subject}/"
 
 
 def get_subjects(subject_dir, dir_tree, sessions=None, completed_subs=None, num=None):
     subargs = get_subargs(subject_dir, completed_subs=completed_subs, num=num)
-    return subargs_to_subjects(subargs, dir_tree, subject_dir,
-                               sessions=sessions)
+    return subargs_to_subjects(subargs, dir_tree, subject_dir, sessions=sessions)
 
 
 def read_file_subargs(filepath, dir_tree, num=None):
@@ -66,13 +64,15 @@ def read_file_subargs(filepath, dir_tree, num=None):
 
 
 def get_subargs(sub_dir, completed_subs=None, num=None):
-    subargs = [dir.replace(s.SUB_PREFIX, '')
-               for dir in os.listdir(sub_dir)
-               if os.path.isdir(os.path.join(sub_dir, dir))
-               and s.SUB_PREFIX in dir]
+    subargs = [
+        dir.replace(paths.SUB_PREFIX, "")
+        for dir in os.listdir(sub_dir)
+        if os.path.isdir(os.path.join(sub_dir, dir)) and paths.SUB_PREFIX in dir
+    ]
     if completed_subs:
-        subargs = sorted([sub for sub in subargs
-                          if sub not in completed_subs.to_subargs_list()])
+        subargs = sorted(
+            [sub for sub in subargs if sub not in completed_subs.to_subargs_list()]
+        )
     subargs = sorted(subargs)
     if num:
         return subargs[:num]
@@ -87,14 +87,10 @@ def subargs_to_subjects(subargs, dir_tree, sub_dir=None, sessions=None):
     return subjects
 
 
-
 def get_sub_runs(sub_bids_dir):
     runs = []
 
     return runs
-
-# Filepaths --------------------------------------------------------------------
-# Classes
 
 
 class DirectoryTree:
@@ -105,20 +101,20 @@ class DirectoryTree:
 
         self.dataset_name = os.path.basename(os.path.normpath(dataset_dir))
         self.dataset_dir = dataset_dir
-        self.mriqc_dir = dataset_dir + s.MRIQC_DIR
-        self.fmriprep_dir = dataset_dir + s.FMRIPREP_DIR
-        self.deconvolve_dir = dataset_dir + s.DECONVOLVE_DIR
-        self.raw_dir = dataset_dir + s.RAW_DIR
-        self.analysis_dir = dataset_dir + s.ANALYSIS_DIR
-        self.fc_dir = dataset_dir + s.FC_DIR
-        self.log_dir = dataset_dir + s.LOGS_DIR
+        self.mriqc_dir = dataset_dir + paths.MRIQC_DIR
+        self.fmriprep_dir = dataset_dir + paths.FMRIPREP_DIR
+        self.deconvolve_dir = dataset_dir + paths.DECONVOLVE_DIR
+        self.raw_dir = dataset_dir + paths.RAW_DIR
+        self.analysis_dir = dataset_dir + paths.ANALYSIS_DIR
+        self.fc_dir = dataset_dir + paths.FC_DIR
+        self.log_dir = dataset_dir + paths.LOGS_DIR
         self.sessions = sessions
         if bids_dir is None:
-            self.bids_dir = dataset_dir + s.BIDS_DIR
+            self.bids_dir = dataset_dir + paths.BIDS_DIR
         else:
             self.bids_dir = bids_dir
         if work_dir is None:
-            self.work_dir = f'{s.LOCALSCRATCH}{getpass.getuser()}/'
+            self.work_dir = f"{paths.LOCALSCRATCH}{getpass.getuser()}/"
         else:
             self.work_dir = work_dir
 
@@ -127,8 +123,8 @@ class DirectoryTree:
 def check_trailing_slash(filepath, exists=True):
     if filepath is None:
         return None
-    elif filepath[-1] != '/':
-        filepath += '/'
+    elif filepath[-1] != "/":
+        filepath += "/"
     if not os.path.exists(filepath) and exists is True:
         raise FileNotFoundError(filepath)
     return filepath
@@ -136,24 +132,29 @@ def check_trailing_slash(filepath, exists=True):
 
 def get_ses_files(subject, run_file_dir, file_wc):
     files = []
-    if s.SUB_PREFIX not in run_file_dir:
-        run_file_dir = f'{run_file_dir}{s.SUB_PREFIX}{subject.name}/'
+    if paths.SUB_PREFIX not in run_file_dir:
+        run_file_dir = f"{run_file_dir}{paths.SUB_PREFIX}{subject.name}/"
 
     if not subject.sessions:
         files = sorted(
-            glob.glob(f"{run_file_dir}{s.FUNC_DIR}*{subject.name}{file_wc}"))
-        print()
+            glob.glob(f"{run_file_dir}{paths.FUNC_DIR}*{subject.name}{file_wc}")
+        )
     else:
         for session in subject.sessions:
             files.extend(
-                sorted(glob.glob(f"{run_file_dir}{session}/{s.FUNC_DIR}*{subject.name}{file_wc}")))
+                sorted(
+                    glob.glob(
+                        f"{run_file_dir}{session}/{paths.FUNC_DIR}*{subject.name}{file_wc}"
+                    )
+                )
+            )
 
     return files
 
 
 def parse_sub_from_file(filepath):
-    sub_string = ''
-    split_string = filepath.split(s.SUB_PREFIX)[1]
+    sub_string = ""
+    split_string = filepath.split(paths.SUB_PREFIX)[1]
     for char in split_string:
         if not char.isdigit():
             break
@@ -163,10 +164,10 @@ def parse_sub_from_file(filepath):
 
 
 def parse_ses_from_file(filepath):
-    ses_string = ''
-    split_string = filepath.split('ses-')[1]
+    ses_string = ""
+    split_string = filepath.split("ses-")[1]
     for char in split_string:
-        if char == '_' or char == '/':
+        if char == "_" or char == "/":
             break
         else:
             ses_string += char
@@ -174,8 +175,8 @@ def parse_ses_from_file(filepath):
 
 
 def parse_run_from_file(filepath):
-    run_string = ''
-    split_string = filepath.split('run-')[1]
+    run_string = ""
+    split_string = filepath.split("run-")[1]
     for char in split_string:
         if not char.isdigit():
             break
@@ -185,10 +186,10 @@ def parse_run_from_file(filepath):
 
 
 def parse_dir_from_file(filepath):
-    dir_string = ''
-    split_string = filepath.split('dir-')[1]
+    dir_string = ""
+    split_string = filepath.split("dir-")[1]
     for char in split_string:
-        if char == '_':
+        if char == "_":
             break
         else:
             dir_string += char
