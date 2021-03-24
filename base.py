@@ -1,5 +1,5 @@
 import glob2 as glob
-from constants import paths
+from thalpy.constants import paths
 import os
 import getpass
 import pandas as pd

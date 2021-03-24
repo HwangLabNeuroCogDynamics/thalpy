@@ -1,13 +1,13 @@
 import nibabel as nib
 from nilearn import image, input_data, masking
 import os
-import common as cm
+from thalpy import base
+import numpy as np
 
 if os.path.exists("/data/backed_up/shared/ROIs/"):
     PATH_DIR = "/data/backed_up/shared/ROIs/"
-# TODO: either move all masks to argon lss or get which path to find masks from
-elif os.path.exists("Shared/lss"):
-    PATH_DIR = "Shared/lss_kahwang"
+elif os.path.exists("/Shared/lss_kahwang_hpc/data/ROIs/"):
+    PATH_DIR = "/Shared/lss_kahwang_hpc/data/ROIs/"
 
 # Masks -----------------------------------------------------------------------
 MOREL_PATH = PATH_DIR + "Thalamus_Morel_consolidated_mask_v3.nii.gz"
@@ -47,9 +47,14 @@ MOREL_LIST = [
     "VP",
 ]
 
-SCHAEFER_PATH = (
-    PATH_DIR + "Schaefer2018_400Parcels_17Networks_order_FSLMNI152_1mm.nii.gz"
+SCHAEFER_YEO17_PATH = (
+    PATH_DIR + "Schaefer2018_400Parcels_17Networks_order_FSLMNI152_2mm.nii.gz"
 )
+SCHAEFER_YEO7_PATH = (
+    PATH_DIR + "Schaefer2018_400Parcels_7Networks_order_FSLMNI152_2mm.nii.gz"
+)
+SCHAEFER_7CI = PATH_DIR + "Schaeffer400_7network_CI"
+SCHAEFER_17CI = PATH_DIR + "Schaeffer400_17network_CI"
 
 
 # Mask Functions ---------------------------------------------------------------
@@ -73,7 +78,7 @@ def get_brain_masker(subjects, brain_mask_WC):
     brain_masks = []
     for subject in subjects:
         brain_masks.extend(
-            cm.get_ses_files(subject, subject.fmriprep_dir, brain_mask_WC)
+            base.get_ses_files(subject, subject.fmriprep_dir, brain_mask_WC)
         )
     if not any(brain_masks):
         raise ValueError("No brain mask files")
@@ -84,3 +89,14 @@ def get_brain_masker(subjects, brain_mask_WC):
     brain_masker = input_data.NiftiMasker(union_mask)
 
     return brain_masker
+
+
+def masker_count(masker):
+    if masker.__class__.__name__ == "NiftiMasker":
+        return np.count_nonzero(masker.mask_img.get_fdata())
+    elif masker.__class__.__name__ == "NiftiLabelsMasker":
+        return len(np.unique(masker.labels_img.get_fdata())) - 1
+    else:
+        raise TypeError(
+            "Masker does not known type. Must be NiftiMasker or NifitLabelsMasker."
+        )

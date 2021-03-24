@@ -1,3 +1,3 @@
 REGRESSOR_WC = "*regressors.tsv"
 BRAIN_MASK_WC = ""
-BOLD_WC = ""
+BOLD_WC = "*preproc_bold.nii.gz"
