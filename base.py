@@ -12,6 +12,12 @@ class Subjects(list):
     def to_subargs_list(self):
         return [sub.name for sub in self]
 
+    def get_sub_index(self, sub_name):
+        for index, subject in enumerate(self):
+            if sub_name == subject.name:
+                return index
+        return -1
+
 
 class Subject:
     def __get_sub_dir(self, path):
@@ -60,7 +66,7 @@ def read_file_subargs(filepath, dir_tree, num=None):
         subargs = file.read().splitlines()
     if num:
         subargs = subargs[:num]
-    return subargs_to_subjects(subargs, dir_tree)
+    return subargs_to_subjects(subargs, dir_tree, dir_tree.fmriprep_dir)
 
 
 def get_subargs(sub_dir, completed_subs=None, num=None):
@@ -80,7 +86,7 @@ def get_subargs(sub_dir, completed_subs=None, num=None):
         return subargs
 
 
-def subargs_to_subjects(subargs, dir_tree, sub_dir=None, sessions=None):
+def subargs_to_subjects(subargs, dir_tree, sub_dir, sessions=None):
     subjects = Subjects()
     for sub in subargs:
         subjects.append(Subject(sub, dir_tree, sub_dir, sessions=sessions))

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 from nilearn.glm import regression
 from nilearn.glm.first_level.design_matrix import make_first_level_design_matrix
 import nibabel as nb
@@ -9,6 +8,7 @@ from nilearn import plotting
 from nilearn.signal import butterworth
 from nilearn.input_data import NiftiMasker
 
+import logging
 import matplotlib
 import pylab as plt
 import seaborn as sns
@@ -41,6 +41,40 @@ from nipype.algorithms import confounds as nac
 # lp_filter = args.lp_filter
 # out_figure_path = args.out_figure_path
 
+DEFAULT_COLUMNS = [
+    "csf",
+    "white_matter",
+    "a_comp_cor_00",
+    "a_comp_cor_01",
+    "a_comp_cor_02",
+    "a_comp_cor_03",
+    "a_comp_cor_04",
+    "trans_x",
+    "trans_x_power2",
+    "trans_x_derivative1",
+    "trans_x_derivative1_power2",
+    "trans_y",
+    "trans_y_power2",
+    "trans_y_derivative1",
+    "trans_y_derivative1_power2",
+    "trans_z",
+    "trans_z_power2",
+    "trans_z_derivative1",
+    "trans_z_derivative1_power2",
+    "rot_x",
+    "rot_x_power2",
+    "rot_x_derivative1",
+    "rot_x_derivative1_power2",
+    "rot_y",
+    "rot_y_power2",
+    "rot_y_derivative1",
+    "rot_y_derivative1_power2",
+    "rot_z",
+    "rot_z_power2",
+    "rot_z_derivative1",
+    "rot_z_derivative1_power2",
+]
+
 
 def denoise(
     img_file,
@@ -51,11 +85,16 @@ def denoise(
     lp_filter=False,
     out_figure_path=False,
     default_cols=True,
+    generate_html=False,
+    verbose=False,
 ):
     nii_ext = ".nii.gz"
     FD_thr = [0.5]
     sc_range = np.arange(-1, 3)
     constant = "constant"
+
+    if verbose:
+        logging.basicConfig(level=logging.INFO)
 
     # read in files
     img = load_niimg(img_file)
@@ -63,42 +102,9 @@ def denoise(
     data = img.get_fdata()
     df_orig = pandas.read_csv(tsv_file, "\t", na_values="n/a")
     Ntrs = df_orig.values.shape[0]
-    print("# of TRs: " + str(Ntrs))
+    logging.info("# of TRs: " + str(Ntrs))
     assert Ntrs == data.shape[len(data.shape) - 1]
 
-    DEFAULT_COLUMNS = [
-        "csf",
-        "white_matter",
-        "a_comp_cor_00",
-        "a_comp_cor_01",
-        "a_comp_cor_02",
-        "a_comp_cor_03",
-        "a_comp_cor_04",
-        "trans_x",
-        "trans_x_power2",
-        "trans_x_derivative1",
-        "trans_x_derivative1_power2",
-        "trans_y",
-        "trans_y_power2",
-        "trans_y_derivative1",
-        "trans_y_derivative1_power2",
-        "trans_z",
-        "trans_z_power2",
-        "trans_z_derivative1",
-        "trans_z_derivative1_power2",
-        "rot_x",
-        "rot_x_power2",
-        "rot_x_derivative1",
-        "rot_x_derivative1_power2",
-        "rot_y",
-        "rot_y_power2",
-        "rot_y_derivative1",
-        "rot_y_derivative1_power2",
-        "rot_z",
-        "rot_z_power2",
-        "rot_z_derivative1",
-        "rot_z_derivative1_power2",
-    ]
     # select columns to use as nuisance regressors
     if default_cols:
         df = df_orig[DEFAULT_COLUMNS]
@@ -107,10 +113,11 @@ def denoise(
 
     # fill in missing nuisance values with mean for that variable
     for col in df.columns:
-        if sum(df[col].isnull()) > 0:
-            print("Filling in " + str(sum(df[col].isnull())) + " NaN value for " + col)
-            df[col] = df[col].fillna(np.mean(df[col]))
-    print("# of Confound Regressors: " + str(len(df.columns)))
+        sum_nan = sum(df[col].isnull())
+        if sum_nan > 0:
+            logging.info("Filling in " + str(sum_nan) + " NaN value for " + col)
+            df.loc[np.isnan(df[col]), col] = np.mean(df[col])
+    logging.info("# of Confound Regressors: " + str(len(df.columns)))
 
     # implement HP filter in regression
     TR = img.header.get_zooms()[-1]
@@ -127,11 +134,11 @@ def denoise(
         # fn adds intercept into dm
 
         hp_cols = [col for col in df.columns if "drift" in col]
-        print("# of High-pass Filter Regressors: " + str(len(hp_cols)))
+        logging.info("# of High-pass Filter Regressors: " + str(len(hp_cols)))
     else:
         # add in intercept column into data frame
         # df[constant] = 1
-        print("No High-pass Filter Applied")
+        logging.info("No High-pass Filter Applied")
 
     dm = df.values
 
@@ -143,7 +150,7 @@ def denoise(
     # setup and run regression
     model = regression.OLSModel(dm)
     results = model.fit(data.T)
-    if not hp_filter:
+    if generate_html and not hp_filter:
         results_orig_resid = copy.deepcopy(
             results.residuals
         )  # save for rsquared computation
@@ -172,7 +179,7 @@ def denoise(
         results.residuals = butterworth(
             results.residuals, sampling_rate=Fs, low_pass=low_pass, high_pass=None
         )
-        print("Low-pass Filter Applied: < " + str(low_pass) + " Hz")
+        logging.info("Low-pass Filter Applied: < " + str(low_pass) + " Hz")
 
     # add mean back into data
     clean_data = results.residuals.T + np.reshape(
@@ -184,7 +191,7 @@ def denoise(
     new_img = nb.Nifti1Image(clean_data, img.affine, header=img.header)
 
     if out_path:
-        print("Saving output file...")
+        logging.info("Saving output file...")
         img_name = os.path.basename(img.get_filename())
         file_base = img_name[0 : img_name.find(".")]
         save_img_file = pjoin(out_path, file_base + "_NR" + nii_ext)

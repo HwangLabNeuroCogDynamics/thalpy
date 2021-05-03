@@ -69,7 +69,7 @@ def get_binary_mask(mask_path):
     binary_mask = nib.load(mask_path)
     binary_mask = image.math_img("img>0", img=binary_mask)
     binary_masker = input_data.NiftiMasker(binary_mask)
-
+    binary_masker.fit()
     return binary_masker
 
 

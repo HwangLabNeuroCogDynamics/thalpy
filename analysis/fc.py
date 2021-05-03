@@ -14,6 +14,7 @@ import functools as ft
 import warnings
 from concurrent.futures import ThreadPoolExecutor
 import pickle
+from threadpoolctl import threadpool_limits
 
 # Classes
 class FcData:
@@ -67,50 +68,43 @@ class FcData:
             self.bold_WC = wildcards.BOLD_WC
             self.censor_WC = wildcards.REGRESSOR_WC
 
-        self.data = None
         self.path = self.dir_tree.analysis_dir + output_file + ".p"
 
-    # @property
-    # def data(self):
-    #     data_list = [
-    #         fc_subject.fc_matrix
-    #         for fc_subject in self.fc_subjects
-    #         if fc_subject.fc_matrix is not None
-    #     ]
-    #     return np.dstack(data_list)
+    @property
+    def data(self):
+        data_list = [
+            fc_subject.seed_to_voxel_correlations
+            for fc_subject in self.fc_subjects
+            if fc_subject.seed_to_voxel_correlations is not None
+        ]
+        return np.dstack(data_list)
 
     def calc_fc(self):
         print(
             f"Calculating functional connectivity for each subject in parallel with {self.cores} processes."
         )
 
-        correlation_list = []
-        pool = multiprocessing.Pool(self.cores)
-        correlation_list = pool.imap(
-            ft.partial(
-                try_fc_sub,
-                self.n_masker,
-                self.m_masker,
-                self.n,
-                self.m,
-                self.bold_WC,
-                self.censor,
-                self.censor_WC,
-            ),
-            self.fc_subjects,
-        )
+        with threadpool_limits(limits=1, user_api="blas"):
+            pool = multiprocessing.Pool(self.cores)
+            fc_subjects_calculated = pool.imap(
+                ft.partial(
+                    try_fc_sub,
+                    self.n_masker,
+                    self.m_masker,
+                    self.n,
+                    self.m,
+                    self.bold_WC,
+                    self.censor,
+                    self.censor_WC,
+                ),
+                self.fc_subjects,
+            )
 
-        # convert into numpy array with shape of (n x m x subjects)
-        # where n and m are number of elements in first and scond region
-        self.data = np.zeros((self.n, self.m, len(self.fc_subjects)))
-        for index, corr in enumerate(correlation_list):
-            if corr is not None:
-                self.data[:, :, index] = corr
+        for index, subject in enumerate(fc_subjects_calculated):
+            self.fc_subjects[index] = subject
 
         # save fc correlation to numpy array file
         self.save()
-
-        return self.data
 
     def save(self, path=None):
         if path is not None:
@@ -126,7 +120,7 @@ class FcSubject(base.Subject):
         self.n_series = None
         self.m_series = None
         self.TR = None
-        self.fc_matrix = None
+        self.seed_to_voxel_correlations = None
         super().__init__(
             subject.name, dir_tree, dir_tree.fmriprep_dir, sessions=subject.sessions
         )
@@ -138,13 +132,13 @@ def load_fc(filepath):
 
 def try_fc_sub(n_masker, m_masker, n, m, bold_WC, censor, censor_WC, subject):
     try:
-        seed_to_voxel_correlations = fc_sub(
+        fc_subject = fc_sub(
             n_masker, m_masker, n, m, bold_WC, censor, censor_WC, subject
         )
-        return seed_to_voxel_correlations
+        return fc_subject
     except Exception as e:
         print(e)
-        return None
+        return subject
 
 
 def fc_sub(n_masker, m_masker, n, m, bold_WC, censor, censor_WC, fc_subject):
@@ -187,11 +181,11 @@ def fc_sub(n_masker, m_masker, n, m, bold_WC, censor, censor_WC, fc_subject):
     fc_subject.TR = fc_subject.n_series.shape[-1]
 
     # get FC correlation
-    seed_to_voxel_correlations = generate_correlation_mat(
+    fc_subject.seed_to_voxel_correlations = generate_correlation_mat(
         fc_subject.n_series, fc_subject.m_series
     )
 
-    return seed_to_voxel_correlations
+    return fc_subject
 
 
 def load_bold_async(bold_files):
@@ -240,15 +234,17 @@ def generate_correlation_mat(x, y):
 
 
 if __name__ == "__main__":
+    dir_tree = base.DirectoryTree("/mnt/nfs/lss/lss_kahwang_hpc/data/HCP_D")
+    subjects = base.get_subjects(dir_tree.fmriprep_dir, dir_tree, num=1)
+    mask = masks.get_brain_masker(subjects, "*rest" + wildcards.BRAIN_MASK_WC)
     fc_data = FcData(
         "/mnt/nfs/lss/lss_kahwang_hpc/data/HCP_D",
-        "roi_to_mask",
-        masks.SCHAEFER_YEO7_PATH,
-        masks.MOREL_PATH,
-        "schaefer_thal",
+        mask,
+        mask,
+        "full_fc",
         task="rest",
-        cores=10,
-        num=10,
+        cores=1,
+        num=1,
     )
     fc_data.calc_fc()
     fc_data.save()

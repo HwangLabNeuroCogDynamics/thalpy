@@ -20,6 +20,12 @@ def pc_dataset(fc_matrix, module_file, thresholds=None, pc_axis=0, output_path=N
         [voxels, (thresholds, optional), subjects]
     """
     module_assignments = np.loadtxt(module_file)
+    if len(module_assignments) != fc_matrix.shape[1]:
+        raise ValueError(
+            "Module assignment length must match m in FC matrix with shape (n, m, subjects). "
+            f"m length is {fc_matrix.shape[1]} while module assignment length is {len(module_assignments)}. "
+            "Your first two FC axes may need to be swapped."
+        )
 
     if thresholds:
         pc_matrix = np.empty(
@@ -83,4 +89,5 @@ def calc_pc(matrix, module_assignments):
         )
 
     pc = 1 - kis
+    pc = np.where(np.isnan(pc), np.nanmin(pc), pc)
     return pc
