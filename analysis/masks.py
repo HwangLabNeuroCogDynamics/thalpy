@@ -3,6 +3,7 @@ from nilearn import image, input_data, masking
 import os
 from thalpy import base
 import numpy as np
+import warnings
 
 if os.path.exists("/data/backed_up/shared/ROIs/"):
     PATH_DIR = "/data/backed_up/shared/ROIs/"
@@ -58,22 +59,21 @@ SCHAEFER_17CI = PATH_DIR + "Schaeffer400_17network_CI"
 
 
 # Mask Functions ---------------------------------------------------------------
-def get_roi_mask(roi_mask_path):
+def get_roi_masker(roi_mask_path):
     roi_mask = nib.load(roi_mask_path)
     roi_masker = input_data.NiftiLabelsMasker(roi_mask)
 
     return roi_masker
 
 
-def get_binary_mask(mask_path):
+def get_binary_masker(mask_path):
     binary_mask = nib.load(mask_path)
     binary_mask = image.math_img("img>0", img=binary_mask)
     binary_masker = input_data.NiftiMasker(binary_mask)
-    binary_masker.fit()
     return binary_masker
 
 
-def get_brain_masker(subjects, brain_mask_WC):
+def union_brain_masks(subjects, brain_mask_WC):
     # get brain mask files from each run in subject fmriprep dir
     brain_masks = []
     for subject in subjects:
@@ -81,14 +81,17 @@ def get_brain_masker(subjects, brain_mask_WC):
             base.get_ses_files(subject, subject.fmriprep_dir, brain_mask_WC)
         )
     if not any(brain_masks):
-        raise ValueError("No brain mask files")
+        warnings.warn("No brain mask files")
+        return
     print(f"Brain masks:\n{brain_masks}")
 
-    # union mask of all run brain masks
     union_mask = masking.intersect_masks(brain_masks, threshold=0)
-    brain_masker = input_data.NiftiMasker(union_mask)
+    return union_mask
 
-    return brain_masker
+
+def get_brain_masker(subjects, brain_mask_WC):
+    union_mask = union_brain_masks(subjects, brain_mask_WC)
+    return input_data.NiftiMasker(union_mask)
 
 
 def masker_count(masker):

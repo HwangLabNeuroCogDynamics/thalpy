@@ -28,7 +28,7 @@ def pc_dataset(fc_matrix, module_file, thresholds=None, pc_axis=0, output_path=N
         )
 
     if thresholds:
-        pc_matrix = np.empty(
+        pc_matrix = np.zeros(
             (fc_matrix.shape[pc_axis], len(thresholds), fc_matrix.shape[-1])
         )
         for sub_index in range(fc_matrix.shape[-1]):
@@ -39,7 +39,7 @@ def pc_dataset(fc_matrix, module_file, thresholds=None, pc_axis=0, output_path=N
                 pc_axis=pc_axis,
             )
     else:
-        pc_matrix = np.empty((fc_matrix.shape[pc_axis], fc_matrix.shape[-1]))
+        pc_matrix = np.zeros()((fc_matrix.shape[pc_axis], fc_matrix.shape[-1]))
         for sub_index in range(fc_matrix.shape[-1]):
             pc_matrix[:, sub_index] = pc_subject(
                 fc_matrix[:, :, sub_index], module_assignments, pc_axis=pc_axis
@@ -54,7 +54,7 @@ def pc_dataset(fc_matrix, module_file, thresholds=None, pc_axis=0, output_path=N
 def pc_subject(matrix, module_assignments, thresholds=None, pc_axis=0):
     # threshold fc value to set any values less than percentile to 0
     if thresholds:
-        sub_matrix = np.empty([matrix.shape[pc_axis], len(thresholds)])
+        sub_matrix = np.zeros([matrix.shape[pc_axis], len(thresholds)])
         for thresh_index, threshold in enumerate(thresholds):
             temp_mat = matrix.copy()
             temp_mat[temp_mat < np.percentile(temp_mat, threshold)] = 0
@@ -89,5 +89,4 @@ def calc_pc(matrix, module_assignments):
         )
 
     pc = 1 - kis
-    pc = np.where(np.isnan(pc), np.nanmin(pc), pc)
     return pc

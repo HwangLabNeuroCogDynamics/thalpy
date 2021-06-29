@@ -28,8 +28,9 @@ def compute_PCA(
 
     if var_list is not None:
         # get and save loadings that represent variables contributions to components
-        loadings = pd.DataFrame(pca.components_.T, index=var_list)
-        loadings.to_csv(output_name + "_loadings.csv")
+        loadings = pca.components_.T
+        loadings_df = pd.DataFrame(loadings, index=var_list)
+        loadings_df.to_csv(output_name + "_loadings.csv")
         print(loadings)
 
         # get and save correlated loadings that represent each the correlations
@@ -51,4 +52,4 @@ def compute_PCA(
             nib.save(img, f"{output_name}_component_{index}.nii")
             plotting.plot_thal(img)
 
-    return PCA_components
+    return PCA_components, loadings, correlated_loadings

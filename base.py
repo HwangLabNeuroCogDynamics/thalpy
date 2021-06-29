@@ -20,8 +20,8 @@ class Subjects(list):
 
 
 class Subject:
-    def __get_sub_dir(self, path):
-        return path + self.sub_dir
+    def get_sub_dir(self, path):
+        return os.path.join(path, self.sub_dir)
 
     def get_sub_sessions(self, run_dir):
         return sorted(
@@ -34,11 +34,11 @@ class Subject:
         # set directories
         self.sub_dir = f"{paths.SUB_PREFIX}{name}/"
         self.dataset_dir = dir_tree.dataset_dir
-        self.bids_dir = self.__get_sub_dir(dir_tree.bids_dir)
-        self.mriqc_dir = self.__get_sub_dir(dir_tree.mriqc_dir)
-        self.fmriprep_dir = self.__get_sub_dir(dir_tree.fmriprep_dir)
-        self.deconvolve_dir = self.__get_sub_dir(dir_tree.deconvolve_dir)
-        self.fc_dir = self.__get_sub_dir(dir_tree.fc_dir)
+        self.bids_dir = self.get_sub_dir(dir_tree.bids_dir)
+        self.mriqc_dir = self.get_sub_dir(dir_tree.mriqc_dir)
+        self.fmriprep_dir = self.get_sub_dir(dir_tree.fmriprep_dir)
+        self.deconvolve_dir = self.get_sub_dir(dir_tree.deconvolve_dir)
+        self.fc_dir = self.get_sub_dir(dir_tree.fc_dir)
 
         # set sessions and runs
         if dir_tree.sessions:
@@ -57,6 +57,18 @@ def get_sub_dir(subject):
 
 
 def get_subjects(subject_dir, dir_tree, sessions=None, completed_subs=None, num=None):
+    """[summary]
+
+    Args:
+        subject_dir ([type]): [description]
+        dir_tree ([type]): [description]
+        sessions ([type], optional): [description]. Defaults to None.
+        completed_subs ([type], optional): [description]. Defaults to None.
+        num ([type], optional): [description]. Defaults to None.
+
+    Returns:
+        [Subject] list of subjects
+    """
     subargs = get_subargs(subject_dir, completed_subs=completed_subs, num=num)
     return subargs_to_subjects(subargs, dir_tree, subject_dir, sessions=sessions)
 
@@ -137,23 +149,41 @@ def check_trailing_slash(filepath, exists=True):
 
 
 def get_ses_files(subject, run_file_dir, file_wc):
-    files = []
-    if paths.SUB_PREFIX not in run_file_dir:
-        run_file_dir = f"{run_file_dir}{paths.SUB_PREFIX}{subject.name}/"
+    """[summary]
+
+    Args:
+        subject ([type]): Subject with files
+        run_file_dir ([type]): directory to search for files
+        file_wc ([type]): wildcard to match file
+
+    Returns:
+        [Files]: List of files matching pattern
+    """
+
+    if subject.sub_dir.replace("/", "") in os.listdir(run_file_dir):
+        run_file_dir = os.path.join(run_file_dir, subject.sub_dir)
+    else:
+        file_wc = f"*{subject.name}{file_wc}"
+
+    print(run_file_dir)
 
     if not subject.sessions:
-        files = sorted(
-            glob.glob(f"{run_file_dir}{paths.FUNC_DIR}*{subject.name}{file_wc}")
-        )
+        if "func" in os.listdir(run_file_dir):
+            file_pattern = os.path.join(run_file_dir, paths.FUNC_DIR, file_wc)
+        else:
+            file_pattern = os.path.join(run_file_dir, file_wc)
+            print(file_pattern)
+        files = sorted(glob.glob(file_pattern))
     else:
         for session in subject.sessions:
-            files.extend(
-                sorted(
-                    glob.glob(
-                        f"{run_file_dir}{session}/{paths.FUNC_DIR}*{subject.name}{file_wc}"
-                    )
+            if "func" in os.listdir(run_file_dir):
+                file_pattern = os.path.join(
+                    run_file_dir, session, paths.FUNC_DIR, file_wc
                 )
-            )
+            else:
+                file_pattern = os.path.join(run_file_dir, session, file_wc)
+
+            files.extend(sorted(glob.glob(file_pattern)))
 
     return files
 

@@ -2,9 +2,9 @@ import pandas as pd
 import numpy as np
 
 
-def censor(filepath, df=None, threshold=0.2, verbose=False):
-    if not df:
-        df = pd.read_csv(filepath, sep="\t")
+def censor(df, threshold=0.2, verbose=False):
+    if isinstance(df, str):
+        df = pd.read_csv(df, sep="\t")
 
     censor_vector = np.empty((len(df.index)))
     prev_motion = 0
