@@ -100,7 +100,7 @@ class FcData:
             pool = multiprocessing.Pool(self.cores)
             fc_subjects_calculated = pool.map(
                 ft.partial(
-                    fc_sub,
+                    try_fc_sub,
                     self.n_masker,
                     self.m_masker,
                     self.n,
@@ -145,6 +145,39 @@ def load(filepath):
     return pickle.load(open(filepath, "rb"))
 
 
+def try_fc_sub(
+    n_masker,
+    m_masker,
+    n,
+    m,
+    bold_WC,
+    censor,
+    censor_WC,
+    is_denoise,
+    bold_dir,
+    fc_subject,
+):
+
+    try:
+        fc_subject = fc_sub(
+            n_masker,
+            m_masker,
+            n,
+            m,
+            bold_WC,
+            censor,
+            censor_WC,
+            is_denoise,
+            bold_dir,
+            fc_subject,
+        )
+
+    except Exception as e:
+        print(e)
+
+    return fc_subject
+
+
 def fc_sub(
     n_masker,
     m_masker,
@@ -157,50 +190,47 @@ def fc_sub(
     bold_dir,
     fc_subject,
 ):
-    try:
-        print(f"Running FC on subject: {fc_subject.name}")
-        # get subject's bold files based on wildcard
-        print(bold_WC)
-        bold_files = base.get_ses_files(fc_subject, bold_dir, bold_WC)
-        if not any(bold_files):
-            warnings.warn(f"Subject: {fc_subject.name} - No bold files found.")
-            return
+    print(f"Running FC on subject: {fc_subject.name}")
+    # get subject's bold files based on wildcard
+    print(bold_WC)
+    bold_files = base.get_ses_files(fc_subject, bold_dir, bold_WC)
+    if not any(bold_files):
+        warnings.warn(f"Subject: {fc_subject.name} - No bold files found.")
+        return
 
-        # load bold files
-        bold_imgs = [nib.load(bold) for bold in bold_files]
+    # load bold files
+    bold_imgs = [nib.load(bold) for bold in bold_files]
 
-        # nuissance regressors denoising
-        if is_denoise:
-            regressor_files = base.get_ses_files(
-                fc_subject, fc_subject.fmriprep_dir, censor_WC
+    # nuissance regressors denoising
+    if is_denoise:
+        regressor_files = base.get_ses_files(
+            fc_subject, fc_subject.fmriprep_dir, censor_WC
+        )
+        for img_index in np.arange(len(bold_imgs)):
+            bold_imgs[img_index] = denoise.denoise(
+                bold_imgs[img_index], regressor_files[img_index], default_cols=True
             )
-            for img_index in np.arange(len(bold_imgs)):
-                bold_imgs[img_index] = denoise.denoise(
-                    bold_imgs[img_index], regressor_files[img_index], default_cols=True
-                )
 
-        # generate censor vector and remove censored points for each bold files
-        if censor:
-            fc_subject.censor_vectors = [
-                motion.censor(regressor_file) for regressor_file in regressor_files
-            ]
-        else:
-            fc_subject.censor_vectors = None
+    # generate censor vector and remove censored points for each bold files
+    if censor:
+        fc_subject.censor_vectors = [
+            motion.censor(regressor_file) for regressor_file in regressor_files
+        ]
+    else:
+        fc_subject.censor_vectors = None
 
-        fc_subject.n_series = transform_bold_imgs(
-            bold_imgs, n_masker, n, fc_subject.censor_vectors
-        )
-        fc_subject.m_series = transform_bold_imgs(
-            bold_imgs, m_masker, m, fc_subject.censor_vectors
-        )
-        fc_subject.TR = fc_subject.n_series.shape[-1]
+    fc_subject.n_series = transform_bold_imgs(
+        bold_imgs, n_masker, n, fc_subject.censor_vectors
+    )
+    fc_subject.m_series = transform_bold_imgs(
+        bold_imgs, m_masker, m, fc_subject.censor_vectors
+    )
+    fc_subject.TR = fc_subject.n_series.shape[-1]
 
-        # get FC correlation
-        fc_subject.seed_to_voxel_correlations = generate_correlation_mat(
-            fc_subject.n_series, fc_subject.m_series
-        )
-    except Exception as e:
-        print(e)
+    # get FC correlation
+    fc_subject.seed_to_voxel_correlations = generate_correlation_mat(
+        fc_subject.n_series, fc_subject.m_series
+    )
 
     return fc_subject
 

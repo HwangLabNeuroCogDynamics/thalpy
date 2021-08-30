@@ -3,6 +3,7 @@ from thalpy.constants import paths
 import os
 import getpass
 import pandas as pd
+from natsort import natsorted, ns
 
 
 class Subjects(list):
@@ -11,6 +12,9 @@ class Subjects(list):
 
     def to_subargs_list(self):
         return [sub.name for sub in self]
+
+    def get_sub_by_name(self, sub_name):
+        return next([sub for sub in self if sub.name == sub_name], None)
 
     def get_sub_index(self, sub_name):
         for index, subject in enumerate(self):
@@ -165,15 +169,12 @@ def get_ses_files(subject, run_file_dir, file_wc):
     else:
         file_wc = f"*{subject.name}{file_wc}"
 
-    print(run_file_dir)
-
     if not subject.sessions:
         if "func" in os.listdir(run_file_dir):
             file_pattern = os.path.join(run_file_dir, paths.FUNC_DIR, file_wc)
         else:
             file_pattern = os.path.join(run_file_dir, file_wc)
-            print(file_pattern)
-        files = sorted(glob.glob(file_pattern))
+        files = natsorted(glob.glob(file_pattern))
     else:
         for session in subject.sessions:
             if "func" in os.listdir(run_file_dir):
@@ -183,7 +184,7 @@ def get_ses_files(subject, run_file_dir, file_wc):
             else:
                 file_pattern = os.path.join(run_file_dir, session, file_wc)
 
-            files.extend(sorted(glob.glob(file_pattern)))
+            files.extend(natsorted(glob.glob(file_pattern)))
 
     return files
 

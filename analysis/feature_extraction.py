@@ -31,14 +31,12 @@ def compute_PCA(
         loadings = pca.components_.T
         loadings_df = pd.DataFrame(loadings, index=var_list)
         loadings_df.to_csv(output_name + "_loadings.csv")
-        print(loadings)
 
         # get and save correlated loadings that represent each the correlations
         # between variables and components
         correlated_loadings = pca.components_.T * np.sqrt(pca.explained_variance_)
         correlated_loadings = pd.DataFrame(correlated_loadings, index=var_list)
         correlated_loadings.to_csv(output_name + "_correlated_loadings.csv")
-        print(correlated_loadings)
 
     # save each component into nifti form
     if masker:
@@ -52,4 +50,4 @@ def compute_PCA(
             nib.save(img, f"{output_name}_component_{index}.nii")
             plotting.plot_thal(img)
 
-    return PCA_components, loadings, correlated_loadings
+    return PCA_components, loadings, correlated_loadings, pca.explained_variance_ratio_

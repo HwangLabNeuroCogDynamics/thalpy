@@ -17,6 +17,7 @@ LOCALSCRATCH = "/localscratch/Users/"
 # Base files
 DATASET_DESCRIPTION = "dataset_description.json"
 STIM_CONFIG = "stim_config.csv"
+PARTICIPANTS_TSV = "participants.tsv"
 
 # File suffixes
 FC_SUFFIX = "_fc.nii"

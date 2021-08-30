@@ -74,3 +74,45 @@ def load_regressors(regressor_file, cols=None, default_cols=True, verbose=False)
     logging.info("# of Confound Regressors: " + str(len(regressor_df.columns)))
 
     return regressor_df, regressor_names
+
+
+def censor(df, threshold=0.2, verbose=False):
+    if isinstance(df, str):
+        df = pd.read_csv(df, sep="\t")
+
+    censor_vector = np.empty((len(df.index)))
+    prev_motion = 0
+
+    for index, row in enumerate(zip(df["framewise_displacement"])):
+        # censor first three points
+        if index < 3:
+            censor_vector[index] = 0
+            continue
+
+        if row[0] > threshold:
+            censor_vector[index] = 0
+            prev_motion = index
+        elif prev_motion + 1 == index or prev_motion + 2 == index:
+            censor_vector[index] = 0
+        else:
+            censor_vector[index] = 1
+
+    if verbose:
+        percent_censored = round(
+            np.count_nonzero(censor_vector == 0) / len(censor_vector) * 100
+        )
+        print(f"\tCensored {percent_censored}% of points")
+    return censor_vector
+
+
+def load_regressors_and_censor(files, cols=None, threshold=0.2):
+    output_df = pd.DataFrame()
+    censor_list = []
+
+    for file in files:
+        print(f'Parsing: {file.split("/")[-1]}')
+        file_df, _ = load_regressors(file, cols=cols, default_cols=False, verbose=False)
+        output_df = output_df.append(file_df)
+        censor_list.extend(censor(file, threshold=threshold))
+
+    return output_df, censor_list
