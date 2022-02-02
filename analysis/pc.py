@@ -39,7 +39,7 @@ def pc_dataset(fc_matrix, module_file, thresholds=None, pc_axis=0, output_path=N
                 pc_axis=pc_axis,
             )
     else:
-        pc_matrix = np.zeros()((fc_matrix.shape[pc_axis], fc_matrix.shape[-1]))
+        pc_matrix = np.zeros((fc_matrix.shape[pc_axis], fc_matrix.shape[-1]))
         for sub_index in range(fc_matrix.shape[-1]):
             pc_matrix[:, sub_index] = pc_subject(
                 fc_matrix[:, :, sub_index], module_assignments, pc_axis=pc_axis

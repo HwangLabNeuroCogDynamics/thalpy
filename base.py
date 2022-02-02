@@ -29,7 +29,8 @@ class Subject:
 
     def get_sub_sessions(self, run_dir):
         return sorted(
-            [dir for dir in os.listdir(run_dir + self.sub_dir) if "ses" in dir]
+            [dir for dir in os.listdir(os.path.join(
+                run_dir, self.sub_dir)) if "ses" in dir]
         )
 
     def __init__(self, name, dir_tree, run_dir, sessions=None):
@@ -47,7 +48,8 @@ class Subject:
         # set sessions and runs
         if dir_tree.sessions:
             sub_sessions = self.get_sub_sessions(run_dir)
-            self.sessions = [ses for ses in dir_tree.sessions if ses in sub_sessions]
+            self.sessions = [
+                ses for ses in dir_tree.sessions if ses in sub_sessions]
         elif sessions is None:
             self.sessions = self.get_sub_sessions(run_dir)
         else:
@@ -123,9 +125,9 @@ class DirectoryTree:
 
         self.dataset_name = os.path.basename(os.path.normpath(dataset_dir))
         self.dataset_dir = dataset_dir
-        self.mriqc_dir = dataset_dir + paths.MRIQC_DIR
+        self.mriqc_dir = os.path.join(dataset_dir, paths.MRIQC_DIR)
         self.fmriprep_dir = dataset_dir + paths.FMRIPREP_DIR
-        self.deconvolve_dir = dataset_dir + paths.DECONVOLVE_DIR
+        self.deconvolve_dir = os.path.join(dataset_dir, paths.DECONVOLVE_DIR)
         self.raw_dir = dataset_dir + paths.RAW_DIR
         self.analysis_dir = dataset_dir + paths.ANALYSIS_DIR
         self.fc_dir = dataset_dir + paths.FC_DIR
@@ -163,6 +165,7 @@ def get_ses_files(subject, run_file_dir, file_wc):
     Returns:
         [Files]: List of files matching pattern
     """
+    files = []
 
     if subject.sub_dir.replace("/", "") in os.listdir(run_file_dir):
         run_file_dir = os.path.join(run_file_dir, subject.sub_dir)
@@ -170,6 +173,7 @@ def get_ses_files(subject, run_file_dir, file_wc):
         file_wc = f"*{subject.name}{file_wc}"
 
     if not subject.sessions:
+        # check if func directory is in under current_file directory, if so add to pattern
         if "func" in os.listdir(run_file_dir):
             file_pattern = os.path.join(run_file_dir, paths.FUNC_DIR, file_wc)
         else:
@@ -189,9 +193,9 @@ def get_ses_files(subject, run_file_dir, file_wc):
     return files
 
 
-def parse_sub_from_file(filepath):
+def parse_sub_from_file(filepath, prefix=paths.SUB_PREFIX):
     sub_string = ""
-    split_string = filepath.split(paths.SUB_PREFIX)[1]
+    split_string = filepath.split(prefix)[1]
     for char in split_string:
         if not char.isdigit():
             break

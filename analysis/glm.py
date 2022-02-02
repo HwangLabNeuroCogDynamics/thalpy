@@ -2,20 +2,23 @@ import nibabel as nib
 import os
 import numpy as np
 import nilearn
+from thalpy import masks
 
 
-def load_brik(subjects, masker, brik_file, voxels, task_list, zscore=True, kind="beta"):
-    if kind == "beta":
+def load_brik(subjects, masker, brik_file, task_list, zscore=True, kind="beta", start_index=None, stop_index=None):
+    if kind == "beta" and not start_index:
         start_index = 2
-    elif kind == "tstat":
+    elif kind == "tstat" and not start_index:
         start_index = 3
 
     num_tasks = len(task_list)
-    stop_index = num_tasks * 3 + start_index
+    if not stop_index:
+        stop_index = num_tasks * 3 + start_index
+    voxels = masks.masker_count(masker)
 
     final_subjects = []
     for sub_index, sub in enumerate(subjects):
-        filepath = sub.deconvolve_dir + brik_file
+        filepath = os.path.join(sub.deconvolve_dir, brik_file)
         if not os.path.exists(filepath):
             print(
                 f"Subject does not have brik file {brik_file} in {sub.deconvolve_dir}. Removing subject."
@@ -27,19 +30,27 @@ def load_brik(subjects, masker, brik_file, voxels, task_list, zscore=True, kind=
     stat_matrix = np.empty([voxels, num_tasks, num_subjects])
 
     if num_subjects == 0:
-        raise "No subjects to run. Check BRIK filepath."
+        raise Exception("No subjects to run. Check BRIK filepath.")
 
     for sub_index, sub in enumerate(final_subjects):
         print(f"loading sub {sub.name}")
 
         # load 3dDeconvolve bucket
-        filepath = sub.deconvolve_dir + brik_file
-        sub_fullstats_4d = nib.load(filepath)
-        sub_fullstats_4d_data = masker.fit_transform(sub_fullstats_4d)
+        filepath = os.path.join(sub.deconvolve_dir, brik_file)
+        brik_img = nib.load(filepath)
+
+        if len(brik_img.shape) == 4:
+            brik_img = nib.Nifti1Image(brik_img.get_fdata(), brik_img.affine)
+        if len(brik_img.shape) == 5:
+            brik_img = nib.Nifti1Image(np.squeeze(
+                brik_img.get_fdata()), brik_img.affine)
+
+        sub_brik_masked = masker.fit_transform(brik_img)
 
         # convert to 4d array with only betas, start at 2 and get every 3
         for task_index, stat_index in enumerate(np.arange(start_index, stop_index, 3)):
-            stat_matrix[:, task_index, sub_index] = sub_fullstats_4d_data[stat_index, :]
+            stat_matrix[:, task_index,
+                        sub_index] = sub_brik_masked[stat_index, :]
 
         # zscore subject
         if zscore:

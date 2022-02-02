@@ -1,22 +1,21 @@
-from thalpy.analysis import masks, motion, denoise
-from thalpy import base
+from thalpy import regressors, denoise
+
+from thalpy import base, masks
 from thalpy.constants import wildcards
 
-
 import numpy as np
-import nilearn as nil
+from nilearn import plotting
 import nibabel as nib
-from nilearn import plotting, input_data, masking, image
-import glob
 import os
+import sys
 import multiprocessing
 import functools as ft
 import warnings
 import pickle
 from threadpoolctl import threadpool_limits
-import math
+import traceback
 
-# Classes
+
 class FcData:
     def __init__(
         self,
@@ -30,56 +29,48 @@ class FcData:
         censor=True,
         is_denoise=True,
         bold_dir=None,
-        bold_WC=None,
-        censor_WC=None,
-        cores=(os.cpu_count() // 2),
+        bold_WC=wildcards.BOLD_WC,
+        censor_WC=wildcards.REGRESSOR_WC,
     ):
-        """[summary]
+        """Class to run functional connectivity analysis and hold data.
 
         Args:
-            dataset_dir ([type]): [description]
-            n_masker ([type]): [description]
-            m_masker ([type]): [description]
-            output_file ([type]): [description]
-            subjects ([type], optional): [description]. Defaults to None.
-            sessions ([type], optional): [description]. Defaults to None.
-            num ([type], optional): [description]. Defaults to None.
-            censor (bool, optional): [description]. Defaults to True.
-            cores (tuple, optional): [description]. Defaults to (os.cpu_count() // 2).
+            dataset_dir (str): filepath to root dataset directory
+            n_masker (NiftiMasker): nilearn masking object - gives n dimension of fc matrix
+            m_masker (NiftiMasker): nilearn masking object - gives m dimension of fc matrix
+            output_file (str): name of output file
+            subjects ([base.Subject], optional): List of Subjects to run fc on. Defaults to None.
+            sessions (str, optional): [description]. List of sessions to include in fc calculation. Defaults to None.
+            num (int, optional): Number of subjects to run. Defaults to None.
+            censor (bool, optional): Whether to censor or not. Defaults to True.
+            bold_dir (str, optional): Path to directory holding bold files. By default it will fmriprep directory of dataset.
+            bold_WC (str, optional): Wilcard for pattern matching bold files. Defaults to "*preproc_bold.nii.gz".
+            censor_WC (str, optional): Wilcard for pattern matching regressor files. Defaults to "*regressors.tsv".
         """
         self.output_file = output_file
         self.censor = censor
         self.is_denoise = is_denoise
-        self.cores = cores
         self.dir_tree = base.DirectoryTree(dataset_dir, sessions=sessions)
+        self.bold_WC = bold_WC
+        self.censor_WC = censor_WC
 
         if bold_dir is None:
-            print("yah")
             self.bold_dir = self.dir_tree.fmriprep_dir
-            print
         else:
             self.bold_dir = bold_dir
 
         if not subjects:
             subjects = base.get_subjects(self.bold_dir, self.dir_tree, num=num)
-        self.fc_subjects = [FcSubject(subject, self.dir_tree) for subject in subjects]
+        self.fc_subjects = [FcSubject(subject, self.dir_tree)
+                            for subject in subjects]
 
         self.n_masker = n_masker
         self.n = masks.masker_count(n_masker)
         self.m_masker = m_masker
         self.m = masks.masker_count(m_masker)
 
-        if bold_WC is None:
-            self.bold_WC = wildcards.BOLD_WC
-        else:
-            self.bold_WC = bold_WC
-
-        if censor_WC is None:
-            self.censor_WC = wildcards.REGRESSOR_WC
-        else:
-            self.censor_WC = censor_WC
-
-        self.path = self.dir_tree.analysis_dir + output_file + ".p"
+        os.makedirs(self.dir_tree.analysis_dir, exist_ok=True)
+        self.path = self.dir_tree.analysis_dir + output_file
 
     @property
     def data(self):
@@ -91,13 +82,25 @@ class FcData:
         ]
         return np.dstack(data_list)
 
-    def calc_fc(self):
+    def plot(self):
+        """Plots seed to voxel correlations for each subject.
+        """
+        for sub in self.fc_subjects:
+            plot_correlations(sub.seed_to_voxel_correlations)
+
+    def calc_fc(self, cores=8):
+        """Calculates functional connectivity.
+
+        Args:
+            cores (int, optional): Number of cores to run in parallel. Defaults to 8.
+        """
+
         print(
-            f"Calculating functional connectivity for each subject in parallel with {self.cores} processes."
+            f"Calculating functional connectivity for each subject in parallel with {cores} processes."
         )
 
         with threadpool_limits(limits=1, user_api="blas"):
-            pool = multiprocessing.Pool(self.cores)
+            pool = multiprocessing.Pool(cores)
             fc_subjects_calculated = pool.map(
                 ft.partial(
                     try_fc_sub,
@@ -118,7 +121,6 @@ class FcData:
             self.fc_subjects[index] = subject
 
         # save fc correlation to numpy array file
-        print("saving")
         self.save()
 
     def save(self, path=None):
@@ -127,6 +129,7 @@ class FcData:
         if ".p" not in self.path:
             self.path += ".p"
 
+        print(f"Saving Fc Data at {self.path}")
         pickle.dump(self, open(self.path, "wb"), protocol=4)
 
 
@@ -173,7 +176,8 @@ def try_fc_sub(
         )
 
     except Exception as e:
-        print(e)
+        print(f"Error on Subject: {fc_subject.name}")
+        traceback.print_exc()
 
     return fc_subject
 
@@ -192,20 +196,19 @@ def fc_sub(
 ):
     print(f"Running FC on subject: {fc_subject.name}")
     # get subject's bold files based on wildcard
-    print(bold_WC)
     bold_files = base.get_ses_files(fc_subject, bold_dir, bold_WC)
     if not any(bold_files):
         warnings.warn(f"Subject: {fc_subject.name} - No bold files found.")
         return
-
+    print(f"Subject Files: {bold_files}")
     # load bold files
     bold_imgs = [nib.load(bold) for bold in bold_files]
 
+    if is_denoise or censor:
+        regressor_files = base.get_ses_files(
+            fc_subject, fc_subject.fmriprep_dir, censor_WC)
     # nuissance regressors denoising
     if is_denoise:
-        regressor_files = base.get_ses_files(
-            fc_subject, fc_subject.fmriprep_dir, censor_WC
-        )
         for img_index in np.arange(len(bold_imgs)):
             bold_imgs[img_index] = denoise.denoise(
                 bold_imgs[img_index], regressor_files[img_index], default_cols=True
@@ -214,17 +217,19 @@ def fc_sub(
     # generate censor vector and remove censored points for each bold files
     if censor:
         fc_subject.censor_vectors = [
-            motion.censor(regressor_file) for regressor_file in regressor_files
+            regressors.censor(regressor_file) for regressor_file in regressor_files
         ]
     else:
         fc_subject.censor_vectors = None
 
     fc_subject.n_series = transform_bold_imgs(
-        bold_imgs, n_masker, n, fc_subject.censor_vectors
+        bold_imgs, n_masker, fc_subject.censor_vectors
     )
     fc_subject.m_series = transform_bold_imgs(
-        bold_imgs, m_masker, m, fc_subject.censor_vectors
+        bold_imgs, m_masker, fc_subject.censor_vectors
     )
+    if fc_subject.n_series.shape[-1] != fc_subject.m_series.shape[-1]:  # check length
+        raise Exception("Time series do not have same TRs.")
     fc_subject.TR = fc_subject.n_series.shape[-1]
 
     # get FC correlation
@@ -232,10 +237,12 @@ def fc_sub(
         fc_subject.n_series, fc_subject.m_series
     )
 
+    sys.stdout.flush()
+    sys.stderr.flush()
     return fc_subject
 
 
-def transform_bold_imgs(bold_imgs, masker, masker_count, censor_vectors):
+def transform_bold_imgs(bold_imgs, masker, censor_vectors):
     series = []
 
     for i, bold_img in enumerate(bold_imgs):
@@ -244,6 +251,10 @@ def transform_bold_imgs(bold_imgs, masker, masker_count, censor_vectors):
             transformed_img = np.delete(
                 transformed_img, np.where(censor_vectors[i] == 0), axis=1
             )
+        # check for trs with 0 mean
+        transformed_img = np.delete(transformed_img, np.where(
+            transformed_img.mean(axis=0) == 0)[0], axis=1)
+
         series.append(transformed_img)
 
     return np.hstack(series)
@@ -270,6 +281,13 @@ def generate_correlation_mat(x, y):
 
     s_x = x.std(1, ddof=tr - 1)
     s_y = y.std(1, ddof=tr - 1)
-    cov = np.dot(x, y.T) - tr * np.dot(mu_x[:, np.newaxis], mu_y[np.newaxis, :])
+    cov = np.dot(x, y.T) - tr * \
+        np.dot(mu_x[:, np.newaxis], mu_y[np.newaxis, :])
 
     return cov / np.dot(s_x[:, np.newaxis], s_y[np.newaxis, :])
+
+
+def plot_correlations(seed_to_voxel_correlations, vmax=0.5, vmin=-0.5):
+    plotting.plot_matrix(seed_to_voxel_correlations, colorbar=True,
+                         vmax=vmax, vmin=vmin)
+    plotting.show()

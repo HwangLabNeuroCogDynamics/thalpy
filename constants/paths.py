@@ -1,3 +1,12 @@
+import os
+
+if os.path.exists("/mnt/nfs/lss/lss_kahwang_hpc/"):
+    SCRIPTS_DIR = "/mnt/nfs/lss/lss_kahwang_hpc/scripts/"
+elif os.path.exists("/Shared/lss_kahwang_hpc/"):
+    SCRIPTS_DIR = "/Shared/lss_kahwang_hpc/scripts/"
+else:
+    Exception("Path not found.")
+
 # Base paths
 BIDS_DIR = "BIDS/"
 SUB_PREFIX = "sub-"
@@ -18,6 +27,8 @@ LOCALSCRATCH = "/localscratch/Users/"
 DATASET_DESCRIPTION = "dataset_description.json"
 STIM_CONFIG = "stim_config.csv"
 PARTICIPANTS_TSV = "participants.tsv"
+REGRESSOR_FILE = "nuisance.1D"
+CENSOR_FILE = "censor.1D"
 
 # File suffixes
 FC_SUFFIX = "_fc.nii"

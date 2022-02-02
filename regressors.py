@@ -1,3 +1,8 @@
+from thalpy import base
+from thalpy.constants import wildcards, paths
+import warnings
+import os
+
 import pandas as pd
 import numpy as np
 import logging
@@ -37,6 +42,46 @@ DEFAULT_COLUMNS = [
 ]
 
 
+def parse_regressors(subject, columns, threshold, regressor_wc=wildcards.REGRESSOR_WC):
+    """Appends specified columns from regressor files and writes combined output
+    file. Input: Subject (subject object), Columns (list str)"""
+    regressor_filepath = os.path.join(
+        subject.deconvolve_dir, paths.REGRESSOR_FILE)
+    censor_filepath = os.path.join(subject.deconvolve_dir, paths.CENSOR_FILE)
+
+    os.makedirs(subject.deconvolve_dir, exist_ok=True)
+
+    print(
+        f"\n\nParsing regressor files for subject {subject.name} in "
+        f"{subject.fmriprep_dir}"
+    )
+
+    regressor_files = base.get_ses_files(
+        subject, subject.fmriprep_dir, regressor_wc
+    )
+    if not regressor_files:
+        warnings.warn(
+            f"Subject {subject.name} has no regressor files in {os.path.join(subject.fmriprep_dir, regressor_wc)} ")
+        return
+
+    regressor_df, output_censor = load_regressors_and_censor(
+        regressor_files, cols=columns, threshold=threshold
+    )
+
+    print(f"Writing regressor file to {regressor_filepath}")
+    regressor_df.to_csv(regressor_filepath, header=False,
+                        index=False, sep="\t")
+
+    print(f"Writing censor file to {censor_filepath}")
+    with open(censor_filepath, "w") as file:
+        for num in output_censor:
+            file.writelines(f"{num}\n")
+    print(
+        f"\n\nSuccessfully extracted columns {columns} from regressor files "
+        "and censored motion"
+    )
+
+
 def load_regressors(regressor_file, cols=None, default_cols=True, verbose=False):
     """Loads regressor tsv into df with selected columns and fills in NaN values.
 
@@ -67,7 +112,8 @@ def load_regressors(regressor_file, cols=None, default_cols=True, verbose=False)
     for col in regressor_df.columns:
         sum_nan = sum(regressor_df[col].isnull())
         if sum_nan > 0:
-            logging.info("Filling in " + str(sum_nan) + " NaN value for " + col)
+            logging.info("Filling in " + str(sum_nan) +
+                         " NaN value for " + col)
             regressor_df.loc[np.isnan(regressor_df[col]), col] = np.mean(
                 regressor_df[col]
             )
@@ -105,13 +151,18 @@ def censor(df, threshold=0.2, verbose=False):
     return censor_vector
 
 
+def load_censor_1D(filepath):
+    return np.loadtxt(filepath)
+
+
 def load_regressors_and_censor(files, cols=None, threshold=0.2):
     output_df = pd.DataFrame()
     censor_list = []
 
     for file in files:
         print(f'Parsing: {file.split("/")[-1]}')
-        file_df, _ = load_regressors(file, cols=cols, default_cols=False, verbose=False)
+        file_df, _ = load_regressors(
+            file, cols=cols, default_cols=False, verbose=False)
         output_df = output_df.append(file_df)
         censor_list.extend(censor(file, threshold=threshold))
 

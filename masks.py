@@ -2,6 +2,7 @@ import nibabel as nib
 from nilearn import image, input_data, masking
 import os
 from thalpy import base
+from thalpy.constants import wildcards
 import numpy as np
 import warnings
 
@@ -48,32 +49,38 @@ MOREL_LIST = [
     "VP",
 ]
 
-SCHAEFER_YEO17_PATH = (
+SCHAEFER_400_17N_PATH = (
     PATH_DIR + "Schaefer2018_400Parcels_17Networks_order_FSLMNI152_2mm.nii.gz"
 )
-SCHAEFER_YEO7_PATH = (
+SCHAEFER_400_7N_PATH = (
     PATH_DIR + "Schaefer2018_400Parcels_7Networks_order_FSLMNI152_2mm.nii.gz"
 )
 SCHAEFER_7CI = PATH_DIR + "Schaeffer400_7network_CI"
 SCHAEFER_17CI = PATH_DIR + "Schaeffer400_17network_CI"
 
+SCHAEFER_900_7N_PATH = (
+    PATH_DIR + "Schaefer2018_900Parcels_7Networks_order_FSLMNI152_2mm.nii.gz"
+)
 
+CORITCAL_BINARY_PATH = (PATH_DIR + "CorticalBinary.nii")
 # Mask Functions ---------------------------------------------------------------
-def get_roi_masker(roi_mask_path):
+
+
+def roi_masker(roi_mask_path):
     roi_mask = nib.load(roi_mask_path)
     roi_masker = input_data.NiftiLabelsMasker(roi_mask)
 
     return roi_masker
 
 
-def get_binary_masker(mask_path):
+def binary_masker(mask_path, img_math="img>0"):
     binary_mask = nib.load(mask_path)
-    binary_mask = image.math_img("img>0", img=binary_mask)
+    binary_mask = image.math_img(img_math, img=binary_mask)
     binary_masker = input_data.NiftiMasker(binary_mask)
     return binary_masker
 
 
-def union_brain_masks(subjects, brain_mask_WC):
+def brain_mask(subjects, brain_mask_WC=wildcards.BRAIN_MASK_WC):
     # get brain mask files from each run in subject fmriprep dir
     brain_masks = []
     for subject in subjects:
@@ -89,8 +96,8 @@ def union_brain_masks(subjects, brain_mask_WC):
     return union_mask
 
 
-def get_brain_masker(subjects, brain_mask_WC):
-    union_mask = union_brain_masks(subjects, brain_mask_WC)
+def brain_masker(subjects, brain_mask_WC=wildcards.BRAIN_MASK_WC):
+    union_mask = brain_mask(subjects, brain_mask_WC)
     return input_data.NiftiMasker(union_mask)
 
 
