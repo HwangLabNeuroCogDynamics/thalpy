@@ -109,9 +109,6 @@ def _group_iter_search_light(list_rows, X, func, args, thread_id, total, verbose
     output = []
     t0 = time.time()
     for i, row in enumerate(list_rows):
-        print(list_rows.shape)
-        print(X.shape)
-        print(X[:, row].shape)
         output.append(func(X[:, row], row, *args))
 
         if verbose > 0:
@@ -230,10 +227,7 @@ class SearchLight():
         X, A = _apply_mask_and_get_affinity(
             process_mask_coords, imgs, self.radius, True,
             mask_img=self.mask_img)
-
-        print(process_mask.shape)
-        print(X.shape)
         
         self.output = search_light(X, self.func, self.args, A,
                                    self.n_jobs, self.verbose)
-        return self.output, self.output_3d
+        return self.output
