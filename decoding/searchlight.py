@@ -49,7 +49,7 @@ def search_light(X, func, args, A, n_jobs=-1, verbose=0):
     group_iter = GroupIterator(A.shape[0], n_jobs)
     with warnings.catch_warnings():  # might not converge
         warnings.simplefilter('ignore', ConvergenceWarning)
-        output = Parallel(n_jobs=n_jobs, verbose=verbose)(
+        output = Parallel(n_jobs=n_jobs, verbose=verbose, backend="multiprocessing")(
             delayed(_group_iter_search_light)(
                 A.rows[list_i],
                 X, func, args, thread_id + 1, A.shape[0], verbose)
@@ -80,7 +80,7 @@ class GroupIterator(object):
             yield list_i
 
 
-def _group_iter_search_light(list_rows, X, fn, args, thread_id, total, verbose=0):
+def _group_iter_search_light(list_rows, X, func, args, thread_id, total, verbose=0):
     """Function for grouped iterations of search_light
     Parameters
     -----------
@@ -109,7 +109,10 @@ def _group_iter_search_light(list_rows, X, fn, args, thread_id, total, verbose=0
     output = []
     t0 = time.time()
     for i, row in enumerate(list_rows):
-        output.append(fn(X[:, row], *args))
+        print(list_rows.shape)
+        print(X.shape)
+        print(X[:, row].shape)
+        output.append(func(X[:, row], row, *args))
 
         if verbose > 0:
             # One can't print less than each 10 iterations
@@ -223,13 +226,14 @@ class SearchLight():
             process_mask_coords[2], process_mask_affine)
         process_mask_coords = np.asarray(process_mask_coords).T
 
+        
         X, A = _apply_mask_and_get_affinity(
             process_mask_coords, imgs, self.radius, True,
             mask_img=self.mask_img)
 
+        print(process_mask.shape)
+        print(X.shape)
+        
         self.output = search_light(X, self.func, self.args, A,
                                    self.n_jobs, self.verbose)
-        scores_3D = np.zeros(process_mask.shape).to_list
-        scores_3D[process_mask] = self.output
-        self.scores_ = scores_3D
-        return self
+        return self.output, self.output_3d

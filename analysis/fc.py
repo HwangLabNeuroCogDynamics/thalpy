@@ -99,23 +99,23 @@ class FcData:
             f"Calculating functional connectivity for each subject in parallel with {cores} processes."
         )
 
-        with threadpool_limits(limits=1, user_api="blas"):
-            pool = multiprocessing.Pool(cores)
-            fc_subjects_calculated = pool.map(
-                ft.partial(
-                    try_fc_sub,
-                    self.n_masker,
-                    self.m_masker,
-                    self.n,
-                    self.m,
-                    self.bold_WC,
-                    self.censor,
-                    self.censor_WC,
-                    self.is_denoise,
-                    self.bold_dir,
-                ),
-                self.fc_subjects,
-            )
+        # with threadpool_limits(limits=1, user_api="blas"):
+        pool = multiprocessing.Pool(cores)
+        fc_subjects_calculated = pool.map(
+            ft.partial(
+                try_fc_sub,
+                self.n_masker,
+                self.m_masker,
+                self.n,
+                self.m,
+                self.bold_WC,
+                self.censor,
+                self.censor_WC,
+                self.is_denoise,
+                self.bold_dir,
+            ),
+            self.fc_subjects,
+        )
 
         for index, subject in enumerate(fc_subjects_calculated):
             self.fc_subjects[index] = subject
@@ -222,19 +222,19 @@ def fc_sub(
     else:
         fc_subject.censor_vectors = None
 
-    fc_subject.n_series = transform_bold_imgs(
+    n_series = transform_bold_imgs(
         bold_imgs, n_masker, fc_subject.censor_vectors
     )
-    fc_subject.m_series = transform_bold_imgs(
+    m_series = transform_bold_imgs(
         bold_imgs, m_masker, fc_subject.censor_vectors
     )
-    if fc_subject.n_series.shape[-1] != fc_subject.m_series.shape[-1]:  # check length
+    if n_series.shape[-1] != m_series.shape[-1]:  # check length
         raise Exception("Time series do not have same TRs.")
-    fc_subject.TR = fc_subject.n_series.shape[-1]
+    fc_subject.TR = n_series.shape[-1]
 
     # get FC correlation
     fc_subject.seed_to_voxel_correlations = generate_correlation_mat(
-        fc_subject.n_series, fc_subject.m_series
+        n_series, m_series
     )
 
     sys.stdout.flush()

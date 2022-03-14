@@ -62,7 +62,7 @@ def get_sub_dir(subject):
     return f"{paths.SUB_PREFIX}{subject}/"
 
 
-def get_subjects(subject_dir, dir_tree, sessions=None, completed_subs=None, num=None):
+def get_subjects(subject_dir, dir_tree, sessions=None, excluded=None, num=None):
     """[summary]
 
     Args:
@@ -75,8 +75,11 @@ def get_subjects(subject_dir, dir_tree, sessions=None, completed_subs=None, num=
     Returns:
         [Subject] list of subjects
     """
-    subargs = get_subargs(subject_dir, completed_subs=completed_subs, num=num)
-    return subargs_to_subjects(subargs, dir_tree, subject_dir, sessions=sessions)
+    subargs = get_subargs(subject_dir, excluded=excluded, num=num)
+    subjects = subargs_to_subjects(
+        subargs, dir_tree, subject_dir, sessions=sessions)
+
+    return subjects
 
 
 def read_file_subargs(filepath, dir_tree, num=None):
@@ -84,18 +87,18 @@ def read_file_subargs(filepath, dir_tree, num=None):
         subargs = file.read().splitlines()
     if num:
         subargs = subargs[:num]
-    return subargs_to_subjects(subargs, dir_tree, dir_tree.fmriprep_dir)
+    return subargs
 
 
-def get_subargs(sub_dir, completed_subs=None, num=None):
+def get_subargs(sub_dir, excluded=None, num=None):
     subargs = [
         dir.replace(paths.SUB_PREFIX, "")
         for dir in os.listdir(sub_dir)
         if os.path.isdir(os.path.join(sub_dir, dir)) and paths.SUB_PREFIX in dir
     ]
-    if completed_subs:
+    if excluded:
         subargs = sorted(
-            [sub for sub in subargs if sub not in completed_subs.to_subargs_list()]
+            [sub for sub in subargs if sub not in excluded]
         )
     subargs = sorted(subargs)
     if num:

@@ -3,9 +3,11 @@ import os
 import numpy as np
 import nilearn
 from thalpy import masks
+import glob
 
 
 def load_brik(subjects, masker, brik_file, task_list, zscore=True, kind="beta", start_index=None, stop_index=None):
+    starting_dir = os.getcwd()
     if kind == "beta" and not start_index:
         start_index = 2
     elif kind == "tstat" and not start_index:
@@ -18,8 +20,12 @@ def load_brik(subjects, masker, brik_file, task_list, zscore=True, kind="beta", 
 
     final_subjects = []
     for sub_index, sub in enumerate(subjects):
-        filepath = os.path.join(sub.deconvolve_dir, brik_file)
-        if not os.path.exists(filepath):
+        os.chdir(sub.deconvolve_dir)
+        brik_files = glob.glob(brik_file)
+        if len(brik_files) > 1:
+            raise Exception("More than 1 brik files found. Check pattern.")
+
+        if len(brik_files) == 0:
             print(
                 f"Subject does not have brik file {brik_file} in {sub.deconvolve_dir}. Removing subject."
             )
@@ -36,7 +42,10 @@ def load_brik(subjects, masker, brik_file, task_list, zscore=True, kind="beta", 
         print(f"loading sub {sub.name}")
 
         # load 3dDeconvolve bucket
-        filepath = os.path.join(sub.deconvolve_dir, brik_file)
+        os.chdir(sub.deconvolve_dir)
+        brik_files = glob.glob(brik_file)
+        filepath = brik_files[0]
+
         brik_img = nib.load(filepath)
 
         if len(brik_img.shape) == 4:
@@ -58,6 +67,7 @@ def load_brik(subjects, masker, brik_file, task_list, zscore=True, kind="beta", 
                 stat_matrix[:, :, sub_index]
             )
 
+    os.chdir(starting_dir)
     return stat_matrix
 
 
