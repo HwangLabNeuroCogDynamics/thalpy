@@ -92,30 +92,17 @@ class SubjectLssTent:
             )
             self.rois.append(masker.fit_transform(nii_img))
 
-    # def remove_nan_trials(self):
-    #     censor_array = np.ones([self.num_trials * self.tent_length])
-    #     df_censor_array = np.ones([self.num_trials])
+    def remove_nan_trials(self):
+        censor_array = np.ones([self.num_trials * self.tent_length])
+        df_censor_array = np.ones([self.num_trials])
 
-    #     for i in range(self.num_trials):
-    #         trial_tent_index = i * self.tent_length
-    #         if np.any(
-    #             np.isnan(
-    #                 self.data[
-    #                     :,
-    #                     :,
-    #                     :,
-    #                     trial_tent_index: trial_tent_index + self.tent_length,
-    #                 ]
-    #             )
-    #         ):
-    #             censor_array[trial_tent_index: trial_tent_index +
-    #                          self.tent_length] = 0
-    #             df_censor_array[i] = 0
-
-    #     censor_array = np.where(censor_array == 0)[0]
-    #     df_censor_array = np.where(df_censor_array == 0)[0]
-
-    #     self.data = np.delete(self.data, censor_array, axis=-1)
-    #     print(self.data)
-    #     self.trial_df = self.trial_df.drop(df_censor_array)
-    #     self.num_trials = len(self.trial_df.index)
+        for trial in range(self.num_trials):
+            trial_tent_index = trial * self.tent_length
+            if np.any(np.isnan(self.data[:, :, :, trial_tent_index: trial_tent_index + self.tent_length])):
+                censor_array[trial_tent_index: trial_tent_index + self.tent_length] = 0
+                df_censor_array[trial] = 0
+                
+        self.data = np.delete(self.data, censor_array, axis=-1)
+        self.trial_df = self.trial_df.drop(df_censor_array)
+        self.num_trials = len(self.trial_df.index)
+        
