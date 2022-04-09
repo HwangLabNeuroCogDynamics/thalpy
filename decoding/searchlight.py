@@ -21,7 +21,7 @@ from sklearn.exceptions import ConvergenceWarning
 
 from nilearn import masking
 from nilearn.image.resampling import coord_transform
-from nilearn.input_data.nifti_spheres_masker import _apply_mask_and_get_affinity
+from nilearn.maskers.nifti_spheres_masker import _apply_mask_and_get_affinity
 from nilearn._utils import check_niimg_4d
 import sys
 
@@ -204,6 +204,12 @@ class SearchLight():
         imgs : Niimg-like object
             See http://nilearn.github.io/manipulating_images/input_output.html
             4D image.
+
+        _apply_mask_and_get_affinity(seeds, niimg, radius, allow_overlap,
+                                 mask_img=None):
+        example code for function at following link
+        https://github.com/nilearn/nilearn/blob/757257e46d381b0933209fccf59f336ff306ee8f/nilearn/maskers/nifti_spheres_masker.py#L24
+        lines 24 - 136 cover this function
         """
 
         # check if image is 4D
